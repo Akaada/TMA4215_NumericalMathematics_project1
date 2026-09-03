@@ -33,6 +33,15 @@ class LagrangeInterpolator:
 
     # a helper function to initialize piecewise interpolation so to not clutter __init__
     def _initialize_piecewise(self, K):
+        """
+        Initialize the piecewise interpolation by dividing the interval into K subintervals and generating points for each subinterval.
+
+        Parameters:
+        K (int): The number of subintervals to divide the interval into.
+        
+        Returns:
+        None
+        """
         self.subintervals = np.linspace(self.start,self.end,K + 1)
 
         # create lists to hold the x and y values for each subinterval
@@ -61,6 +70,17 @@ class LagrangeInterpolator:
 
     # functions to generate the different types of points for interpolation
     def equidistant_points(self, n=None, start=None, end=None):
+        """
+        Generate equidistant points between start and end.
+
+        Parameters:
+        n (int, optional): The number of points to generate. Defaults to self.num_points
+        start (float, optional): The starting point of the interval. Defaults to self.start.
+        end (float, optional): The ending point of the interval. Defaults to self.end.
+        
+        Returns:
+        ndarray[float]: The equidistant points between start and end.
+        """
 
         # added flexibility to specify n, start, and end for piecewise interpolation
         if n is None:
@@ -75,6 +95,17 @@ class LagrangeInterpolator:
 
 
     def chebyshev_points(self, n=None, start=None, end=None):
+        """
+        Generate Chebyshev points between start and end.
+
+        Parameters:
+        n (int, optional): The number of points to generate. Defaults to self.num_points        
+        start (float, optional): The starting point of the interval. Defaults to self.start.
+        end (float, optional): The ending point of the interval. Defaults to self.end.
+
+        Returns:
+        ndarray[float]: The Chebyshev points between start and end.
+        """
 
         # added flexibility to specify n, start, and end for piecewise interpolation
         if n is None:
@@ -167,6 +198,12 @@ class LagrangeInterpolator:
     def piecewise_interpolation(self, x):
         """
         Evaluate the piecewise Lagrange interpolant at x.
+
+        Parameters:
+        x (ndarray[float]): The x-values at which to evaluate the piecewise interpolant.
+
+        Returns:
+        ndarray[float]: The interpolated y-values at the given x.
         """
         x_eval = np.asarray(x, dtype=float) # to ensure that x is a numpy array for consistent behavior
         result = np.zeros_like(x_eval) # Initialize result as an array of zeros with the same shape as x_eval
@@ -227,6 +264,9 @@ class LagrangeInterpolator:
         """
         Plot the interpolation of the stored function using Lagrange interpolation with specific point types.
 
+        Parameters:
+        points (int): The number of points to use for plotting the interpolation. Defaults to 1000.
+
         Returns:
         None
         """
@@ -266,6 +306,15 @@ class LagrangeInterpolator:
 
 
     def error_aprox(self,norm = 'max'):
+        """
+        Calculate the approximation error of the interpolation.
+
+        Parameters:
+        norm (str): The norm to use for the error calculation. Defaults to 'max'. Other options include 'l2' for L2 norm.
+
+        Returns:
+        float: The approximation error.
+        """
         num_points = self.num_points *100
         x_error_eval = np.linspace(self.x_values[0], self.x_values[-1], num_points)
         y_error_eval = self.func(x_error_eval)
