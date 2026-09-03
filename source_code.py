@@ -146,7 +146,7 @@ class LagrangeInterpolator:
         Initialize the LagrangeInterpolator with x and y values.
 
         Parameters:
-        **kwargs: Arbitrary keyword arguments. Must include 'x_values' and 'y_values'.
+        **kwargs: Arbitrary keyword arguments.
         """
         self.start = start
         self.end = end
@@ -156,6 +156,9 @@ class LagrangeInterpolator:
         self.point_function = getattr(self,f"{kwargs.get('point_type', 'equidistant')}_points")
         self.x_values = self.point_function()
         self.y_values = self.func(np.array(self.x_values))
+
+
+
 
     # functions to generate the different types of points for interpolation
     def equidistant_points(self):
@@ -172,6 +175,10 @@ class LagrangeInterpolator:
         integers = np.arange(self.num_points)
         cheb_untransformed = np.cos((integers + 0.5)*np.pi/self.num_points)
         return (self.start + self.end)/2 +  cheb_untransformed*(self.end - self.start)/2
+
+
+
+
 
 
     # functions to evaluate the different functions for interpolation
@@ -218,9 +225,12 @@ class LagrangeInterpolator:
         parameters:
         x (ndarray[float]): The x-values at which to evaluate the interpolating polynomial.
 
+        Returns:
+        ndarray[float]: The interpolated y-value at the given x.
+
         """
         n = len(self.x_values)
-        result = 0.0
+        result = np.zeros_like(x, dtype=float)  # Initialize result as an array of zeros with the same shape as x
 
         for i in range(n):
             term = self.y_values[i]
@@ -229,4 +239,26 @@ class LagrangeInterpolator:
                     term *= (x - self.x_values[j]) / (self.x_values[i] - self.x_values[j])
             result += term
 
-        self.interpolated = result
+        return result
+
+
+    def plot_interpolation(self,points=1000):
+        """
+        Plot the interpolation of the stored function using Lagrange interpolation with specific point types.
+
+        Returns:
+        None
+        """
+        x_plot = np.linspace(self.start, self.end, points)
+        y_plot = self.lagrange_interpolation(x_plot)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(x_plot, y_plot, label='Lagrange Interpolation', color='blue')
+        plt.plot(x_plot, self.func(x_plot), label='Original Function', color='green', linestyle='dashed')
+        plt.scatter(self.x_values, self.y_values, color='red', label='Data Points')
+        plt.title(f'Lagrange Interpolation using {self.point_function.__name__.replace("_points", "").capitalize()} Points')
+        plt.xlabel('x')
+        plt.ylabel('f(x)')
+        plt.legend()
+        plt.grid()
+        plt.show()
