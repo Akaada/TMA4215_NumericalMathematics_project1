@@ -21,31 +21,75 @@ class LagrangeInterpolator:
         self.func_name = kwargs.get('function', 'runge_function')
         self.func = getattr(self, self.func_name)
         self.point_function = getattr(self,f"{kwargs.get('point_type', 'equidistant')}_points")
-        self.x_values = self.point_function()
-        self.y_values = self.func(np.array(self.x_values))
+        self.piecewise = kwargs.get("piecewise", False)
 
+        # if not piecewise, generate points and evaluate function at those points
+        if not self.piecewise:
+            self.x_values = self.point_function()
+            self.y_values = self.func(np.array(self.x_values))
+        else:
+            self._initialize_piecewise(kwargs.get("K", 1))
+
+
+    # a helper function to initialize piecewise interpolation so to not clutter __init__
+    def _initialize_piecewise(self, K):
+        self.subintervals = np.linspace(self.start,self.end,K + 1)
+
+        # create lists to hold the x and y values for each subinterval
+        self.x_values_piecewise = []
+        self.y_values_piecewise = []
+
+        # loop through each subinterval and generate points and evaluate function at those points
+        for i in range(K):
+            sub_start = self.subintervals[i]
+            sub_end = self.subintervals[i + 1]
+
+            # get the x and y values for the current subinterval
+            x_values = self.point_function(
+                n=self.num_points,
+                start=sub_start,
+                end=sub_end
+            )
+            # evaluate the function at those x values
+            y_values = self.func(np.array(x_values))
+
+            # append the x and y values to the lists for piecewise interpolation
+            self.x_values_piecewise.append(np.array(x_values))
+            self.y_values_piecewise.append(np.array(y_values))
 
 
 
     # functions to generate the different types of points for interpolation
-    def equidistant_points(self,n = None):
-        """
-        Generate equidistant points between the start and end values. Stores the points in self.x_values.
-        """
-        if n is None:
-            n = self.num_points
-        step = (self.end - self.start) / (n - 1)
-        return [self.start + i * step for i in range(n)]
+    def equidistant_points(self, n=None, start=None, end=None):
 
-    def chebyshev_points(self,n = None):
-        """
-        Generate Chebyshev points between the start and end values. Stores the points in self.x_values.
-        """
+        # added flexibility to specify n, start, and end for piecewise interpolation
         if n is None:
             n = self.num_points
+        if start is None:
+            start = self.start
+        if end is None:
+            end = self.end
+
+        # Generate n equidistant points between start and end
+        return np.linspace(start, end, n)
+
+
+    def chebyshev_points(self, n=None, start=None, end=None):
+
+        # added flexibility to specify n, start, and end for piecewise interpolation
+        if n is None:
+            n = self.num_points
+        if start is None:
+            start = self.start
+        if end is None:
+            end = self.end
+
+        # Generate n Chebyshev points between start and end
         integers = np.arange(n)
-        cheb_untransformed = np.cos((integers + 0.5)*np.pi/n)
-        return (self.start + self.end)/2 +  cheb_untransformed*(self.end - self.start)/2
+        cheb_untransformed = np.cos((integers + 0.5) * np.pi / n)
+
+        # transform the Chebyshev points from [-1, 1] to [start, end]
+        return (start + end) / 2 + cheb_untransformed * (end - start) / 2
 
 
 
@@ -113,6 +157,61 @@ class LagrangeInterpolator:
         return result
 
 
+
+    def piecewise_interpolation(self, x):
+        """
+        Evaluate the piecewise Lagrange interpolant at x.
+        """
+        x_eval = np.asarray(x, dtype=float) # to ensure that x is a numpy array for consistent behavior
+        result = np.zeros_like(x_eval) # Initialize result as an array of zeros with the same shape as x_eval
+
+        # Loop through each subinterval
+        for i in range(len(self.subintervals) - 1):
+
+            # get the start and end of the current subinterval
+            sub_start = self.subintervals[i]
+            sub_end = self.subintervals[i + 1]
+
+
+            # start by finding the indices of x_eval that are within the current subinterval
+            # use a Boolean mask to identify the points in the current subinterval
+            if i == len(self.subintervals) - 2:
+                mask = (x_eval >= sub_start) & (x_eval <= sub_end)
+            else:
+                mask = (x_eval >= sub_start) & (x_eval < sub_end)
+
+            # if no points are in the current subinterval, skip to the next one
+            if not np.any(mask):
+                continue
+
+            # get the local x and y values for the current subinterval, necessary for the Lagrange basis polynomial calculation
+            local_x = self.x_values_piecewise[i]
+            local_y = self.y_values_piecewise[i]
+
+            # loop over interpolation points in the current subinterval
+            for j in range(self.num_points):
+
+                # creates a basis polynomial for the j-th point in the current subinterval
+                # this is done to avoid having to initialize the first term of the product as 1 and then multiply it by each factor in the Lagrange basis polynomial
+                basis = np.ones(np.sum(mask))
+
+                # loop over all points in the current subinterval to construct the Lagrange basis polynomial
+                for k in range(self.num_points):
+                    if j != k:
+                        basis *= (
+                            (x_eval[mask] - local_x[k])
+                            / (local_x[j] - local_x[k])
+                        )
+
+                result[mask] += local_y[j] * basis
+
+
+        # if the input x was a scalar, return a scalar instead of an array
+        if x_eval.ndim == 0:
+            return result[0]
+
+        return result
+
     def plot_interpolation(self,points=1000):
         """
         Plot the interpolation of the stored function using Lagrange interpolation with specific point types.
@@ -121,8 +220,10 @@ class LagrangeInterpolator:
         None
         """
         x_plot = np.linspace(self.start, self.end, points)
-        y_plot = self.lagrange_interpolation(x_plot)
-
+        if self.piecewise:
+            y_plot = self.piecewise_interpolation(x_plot)
+        else:
+            y_plot = self.lagrange_interpolation(x_plot)
         plt.figure(figsize=(10, 6))
         plt.plot(x_plot, y_plot, label='Lagrange Interpolation', color='blue')
         plt.plot(x_plot, self.func(x_plot), label='Original Function', color='green', linestyle='dashed')
