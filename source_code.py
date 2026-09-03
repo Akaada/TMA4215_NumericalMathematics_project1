@@ -133,6 +133,10 @@ class LagrangeInterpolator:
         """
         return np.exp(3*x)*np.sin(2*x)
 
+
+
+
+    # interpolation methods
     def lagrange_interpolation(self, x):
         """
         Perform Lagrange interpolation for the stored x and y values.
@@ -212,6 +216,9 @@ class LagrangeInterpolator:
 
         return result
 
+
+
+    
     def plot_interpolation(self,points=1000):
         """
         Plot the interpolation of the stored function using Lagrange interpolation with specific point types.
@@ -224,11 +231,27 @@ class LagrangeInterpolator:
             y_plot = self.piecewise_interpolation(x_plot)
         else:
             y_plot = self.lagrange_interpolation(x_plot)
+
+
         plt.figure(figsize=(10, 6))
         plt.plot(x_plot, y_plot, label='Lagrange Interpolation', color='blue')
         plt.plot(x_plot, self.func(x_plot), label='Original Function', color='green', linestyle='dashed')
-        plt.scatter(self.x_values, self.y_values, color='red', label='Data Points')
-        plt.title(f'Lagrange Interpolation using {self.num_points} {self.point_function.__name__.replace("_points", "").capitalize()} Points')
+        if not self.piecewise:
+            plt.scatter(self.x_values, self.y_values, color='red', label='Data Points')
+            plt.title(f'Lagrange Interpolation using {self.num_points} {self.point_function.__name__.replace("_points", "").capitalize()} Points')
+        else:
+            for i in range(len(self.subintervals) - 1):
+                plt.scatter(
+                    self.x_values_piecewise[i],
+                    self.y_values_piecewise[i],
+                    color=f'C{i % 10}',
+                    label=f'Data Points Subinterval {i+1}',
+                    zorder=3
+                )       
+
+            plt.title(f'Piecewise Lagrange Interpolation using {self.num_points} points and {len(self.subintervals)-1} Subintervals on {self.func_name} using {self.point_function.__name__.replace("_points", "").capitalize()} Points')
+
+        
         plt.xlabel('x')
         plt.ylabel('f(x)')
         plt.legend()
