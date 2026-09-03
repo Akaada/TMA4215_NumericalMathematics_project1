@@ -119,9 +119,20 @@ class RBF:
         plt.plot(x_plot, y_plot, label='Original Function', color='blue')
         plt.plot(x_plot, y_interp, label='RBF Interpolation', color='red', linestyle='--')
         plt.scatter(self.x_interpolate, self.func(self.x_interpolate), color='green', label='Interpolation Points')
-        plt.title('RBF Interpolation')
+        plt.title(f'RBF Interpolation with ε = {self.epsilon}')
         plt.xlabel('x')
         plt.ylabel('f(x)')
         plt.legend()
         plt.grid()
         plt.show()
+
+    def conditional_number(self):
+        """
+        Compute the condition number of the interpolation matrix.
+
+        Returns:
+        float: The condition number of the interpolation matrix.
+        """
+        distance_matrix = np.abs(self.x_interpolate[:, np.newaxis] - self.x_interpolate[np.newaxis, :])
+        M = self.phi(distance_matrix)
+        return np.linalg.cond(M)
