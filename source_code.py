@@ -86,7 +86,9 @@ class LagrangeInterpolator:
 
         # Generate n Chebyshev points between start and end
         integers = np.arange(n)
-        cheb_untransformed = np.cos((integers + 0.5) * np.pi / n)
+        #cheb_untransformed = np.cos((integers + 0.5) * np.pi / n)
+        # since in the piecewise interpolation we want the endpoints to be included, we use the following formula for Chebyshev points
+        cheb_untransformed = np.cos(integers * np.pi / (n - 1))  # Chebyshev points in [-1, 1]
 
         # transform the Chebyshev points from [-1, 1] to [start, end]
         return (start + end) / 2 + cheb_untransformed * (end - start) / 2
@@ -193,6 +195,8 @@ class LagrangeInterpolator:
             local_y = self.y_values_piecewise[i]
 
             # loop over interpolation points in the current subinterval
+            # note that this is similar to the lagrange_interpolation method
+            # it could be reused, but due to how we have implemented the function to figure out which subinterval the x_eval points are in, it is more efficient to do it this way
             for j in range(self.num_points):
 
                 # creates a basis polynomial for the j-th point in the current subinterval
@@ -265,8 +269,10 @@ class LagrangeInterpolator:
         num_points = self.num_points *100
         x_error_eval = np.linspace(self.x_values[0], self.x_values[-1], num_points)
         y_error_eval = self.func(x_error_eval)
-
-        interpolated_values = self.lagrange_interpolation(x_error_eval)
+        if not self.piecewise:
+            interpolated_values = self.lagrange_interpolation(x_error_eval)
+        else:
+            interpolated_values = self.piecewise_interpolation(x_error_eval)
         error = np.abs(y_error_eval - interpolated_values)
         if norm == 'max':
             return np.max(error)
