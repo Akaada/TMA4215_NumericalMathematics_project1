@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+plt.style.use("bmh")
 
 
 class LagrangeInterpolator:
@@ -138,7 +139,7 @@ class LagrangeInterpolator:
 
     def error_aprox(self,norm = 'max'):
         num_points = self.num_points *100
-        x_error_eval = self.point_function(num_points)
+        x_error_eval = np.linspace(self.x_values[0], self.x_values[-1], num_points)
         y_error_eval = self.func(x_error_eval)
 
         interpolated_values = self.lagrange_interpolation(x_error_eval)
