@@ -210,3 +210,23 @@ class LagrangeInterpolator:
         ndarray[float]: The values of the function at x.
         """
         return np.exp(3*x)*np.sin(2*x)
+
+    def lagrange_interpolation(self, x):
+        """
+        Perform Lagrange interpolation for the stored x and y values.
+
+        parameters:
+        x (ndarray[float]): The x-values at which to evaluate the interpolating polynomial.
+
+        """
+        n = len(self.x_values)
+        result = 0.0
+
+        for i in range(n):
+            term = self.y_values[i]
+            for j in range(n):
+                if j != i:
+                    term *= (x - self.x_values[j]) / (self.x_values[i] - self.x_values[j])
+            result += term
+
+        self.interpolated = result
