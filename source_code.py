@@ -122,7 +122,7 @@ class LagrangeInterpolator:
         plt.plot(x_plot, y_plot, label='Lagrange Interpolation', color='blue')
         plt.plot(x_plot, self.func(x_plot), label='Original Function', color='green', linestyle='dashed')
         plt.scatter(self.x_values, self.y_values, color='red', label='Data Points')
-        plt.title(f'Lagrange Interpolation using {self.point_function.__name__.replace("_points", "").capitalize()} Points')
+        plt.title(f'Lagrange Interpolation using {self.num_points} {self.point_function.__name__.replace("_points", "").capitalize()} Points')
         plt.xlabel('x')
         plt.ylabel('f(x)')
         plt.legend()
