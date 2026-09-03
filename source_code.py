@@ -135,12 +135,15 @@ class LagrangeInterpolator:
 
 
 
-    def error_aprox(self):
+
+    def error_aprox(self,norm = 'max'):
         num_points = self.num_points *100
         x_error_eval = self.point_function(num_points)
         y_error_eval = self.func(x_error_eval)
 
         interpolated_values = self.lagrange_interpolation(x_error_eval)
         error = np.abs(y_error_eval - interpolated_values)
-        max_error = np.max(error)
-        return max_error
+        if norm == 'max':
+            return np.max(error)
+        elif norm == 'l2':
+            return np.sqrt(np.sum(error**2)) * np.sqrt((self.end - self.start) / num_points)
