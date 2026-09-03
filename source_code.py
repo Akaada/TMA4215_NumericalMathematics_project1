@@ -27,19 +27,23 @@ class LagrangeInterpolator:
 
 
     # functions to generate the different types of points for interpolation
-    def equidistant_points(self):
+    def equidistant_points(self,n = None):
         """
         Generate equidistant points between the start and end values. Stores the points in self.x_values.
         """
-        step = (self.end - self.start) / (self.num_points - 1)
-        return [self.start + i * step for i in range(self.num_points)]
+        if n is None:
+            n = self.num_points
+        step = (self.end - self.start) / (n - 1)
+        return [self.start + i * step for i in range(n)]
 
-    def chebyshev_points(self):
+    def chebyshev_points(self,n = None):
         """
         Generate Chebyshev points between the start and end values. Stores the points in self.x_values.
         """
-        integers = np.arange(self.num_points)
-        cheb_untransformed = np.cos((integers + 0.5)*np.pi/self.num_points)
+        if n is None:
+            n = self.num_points
+        integers = np.arange(n)
+        cheb_untransformed = np.cos((integers + 0.5)*np.pi/n)
         return (self.start + self.end)/2 +  cheb_untransformed*(self.end - self.start)/2
 
 
@@ -128,3 +132,15 @@ class LagrangeInterpolator:
         plt.legend()
         plt.grid()
         plt.show()
+
+
+
+    def error_aprox(self):
+        num_points = self.num_points *100
+        x_error_eval = self.point_function(num_points)
+        y_error_eval = self.func(x_error_eval)
+
+        interpolated_values = self.lagrange_interpolation(x_error_eval)
+        error = np.abs(y_error_eval - interpolated_values)
+        max_error = np.max(error)
+        return max_error
