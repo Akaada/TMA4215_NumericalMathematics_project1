@@ -96,7 +96,7 @@ def func2(x):
     """
     return np.exp(3*x)*np.sin(2*x) # return the value of the function
 
-def plot_interpolation(start,end,function, num_points, point_type):
+def plot_interpolation(start,end,function, num_points=10, point_type= 'equidistant'):
     """
     Plot the interpolation of a given function using Lagrange interpolation with specific point types.
 
@@ -125,6 +125,7 @@ def plot_interpolation(start,end,function, num_points, point_type):
 
     plt.figure(figsize=(10, 6))
     plt.plot(x_plot, y_plot, label='Lagrange Interpolation', color='blue')
+    plt.plot(x_plot, function(x_plot), label='Original Function', color='green', linestyle='dashed')
     plt.scatter(x_values, y_values, color='red', label='Data Points')
     plt.title(f'Lagrange Interpolation using {point_type.capitalize()} Points')
     plt.xlabel('x')
