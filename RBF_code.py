@@ -23,23 +23,24 @@ def f_expsin_torch(x):
     return torch.exp(3 * x) * torch.sin(2 * x)
 f_expsin_torch.__name__ = "exp(3x) * sin(2x)"
 
-def phi(r,epsilon):
-    return torch.exp(-(epsilon * r) ** 2)
+def phi(r2, epsilon):
+    # NOTE: takes the SQUARED distance r2 = r**2, not r.
+    # phi(r) = exp(-(eps*r)^2) = exp(-eps^2 * r2), so |.| is never formed.
+    return torch.exp(-(epsilon**2) * r2)
 
 def M_create(x, epsilon):
-    distances = torch.abs(x[:, None] - x[None, :])
-    return phi(distances, epsilon)
+    r2 = (x[:, None] - x[None, :])**2
+    return phi(r2, epsilon)
 
+def RBF_interpolation(x, x_nodes, weights, epsilon):
+    # NOTE: This function does not work for scalar x
+    r2 = (x[:, None] - x_nodes[None, :])**2
+    return torch.matmul(phi(r2, epsilon), weights)
 def weights_create(x,f, epsilon):
     y = f(x)
     M = M_create(x, epsilon)
     return torch.linalg.solve(M, y)
 
-
-def RBF_interpolation(x, x_nodes, weights, epsilon):
-    # NOTE: This function does not work for scalar x
-    distances = torch.abs(x[:, None] - x_nodes[None, :])
-    return torch.matmul(phi(distances, epsilon), weights)
 
 def RBF_interpolation_task(x,x_nodes,y,epsilon):
     # NOTE: This function is only created for the task. 
@@ -166,3 +167,114 @@ def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_num
     fig.tight_layout()
     plt.show()
 
+
+
+def create_cost_function(f, a, b, N=5000):
+
+    eta = torch.linspace(a, b, N + 1)   # fine grid, fixed
+    c = f(eta)                          # data c_k = f(eta_k), fixed
+
+    def C(z):
+        g = create_RBF_interpolator(z[:-1], f, z[-1])
+        return torch.sum((c - g(eta))**2) * (b - a) / N
+
+    return C
+
+def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-8):
+    """
+    C        : cost function, takes a 1D tensor, returns a scalar
+    x        : initial guess, 1D tensor
+    L        : current estimate of the Lipschitz constant of grad C
+    rho_inc  : > 1, factor to increase L when the step is rejected
+    rho_dec  : < 1, factor to decrease L when the step is accepted
+    """
+    #NOTE: changed phi to cost to avoid confusion with the radial basis function phi
+    x = x.clone().detach().requires_grad_(True)
+    history = []
+
+    for k in range(iters):
+        print(k)
+        cost = C(x)
+        g, = torch.autograd.grad(cost, x)
+        history.append(cost.item())
+        if g.norm() < tol:
+            break
+
+        while True:
+            with torch.no_grad():
+                x_new = x - g / L
+                d = x_new - x
+                cost_new = C(x_new)
+                model = cost + g @ d + 0.5 * L * (d @ d)
+            if torch.isfinite(cost_new) and cost_new <= model:
+                x = x_new.requires_grad_(True)
+                L *= rho_dec
+                break
+            L *= rho_inc
+
+    return x.detach(), L, history
+
+
+def optimize_nodes(f, a, b, epsilon, n, L=1.0, iters=200,
+                   perturb=0.0, N=1000, plot=True):
+    """
+    Optimise RBF nodes AND shape parameter by gradient descent on the L2 cost.
+
+    epsilon (float): initial value of the shape parameter (now optimised too)
+    n (int): number of nodes is n+1
+    L (float): initial Lipschitz estimate for the backtracking
+    perturb (float): std of noise added to the equispaced start, breaks symmetry
+
+    Returns:
+    tuple: (optimised nodes, optimised epsilon, initial cost, final cost, history)
+    """
+    C = create_cost_function(f, a, b, N)
+
+    x0 = torch.linspace(a, b, n + 1)
+    if perturb > 0:
+        x0 = x0 + perturb * torch.randn(n + 1)
+    z0 = torch.cat([x0, torch.tensor([float(epsilon)])])
+
+    # --- NaN check required by the task: verify the gradient at the initial
+    # nodes is finite before starting the descent. The diagonal of M involves
+    # x_i - x_i = 0, where |.| is not differentiable.
+    z0_ = z0.clone().requires_grad_(True)
+    g0, = torch.autograd.grad(C(z0_), z0_)
+    print("initial gradient finite:", torch.isfinite(g0).all().item(),
+          " |g0| =", g0.norm().item())
+    assert torch.isfinite(g0).all(), "non-finite gradient at the initial nodes"
+    # ---
+
+
+    cost0 = C(z0).item()
+    z_opt, _, history = gd_backtracking(C, z0, L=L, iters=iters)
+    x_opt, eps_opt = z_opt[:-1], z_opt[-1].item()
+    cost1 = C(z_opt).item()
+
+    print(f"cost: {cost0:.3e} -> {cost1:.3e},  eps: {epsilon} -> {eps_opt:.4f}")
+
+    if plot:
+        x_plot = torch.linspace(a, b, N)
+        g0 = create_RBF_interpolator(x0, f, epsilon)
+        g1 = create_RBF_interpolator(x_opt, f, eps_opt)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(x_plot.numpy(), f(x_plot).numpy(), "k", label=f.__name__)
+        plt.plot(x_plot.numpy(), g0(x_plot).numpy(), "--", label="start")
+        plt.plot(x_plot.numpy(), g1(x_plot).numpy(), label="optimised")
+        plt.scatter(x0.numpy(), f(x0).numpy(), marker="x", label="start nodes")
+        plt.scatter(x_opt.numpy(), f(x_opt).numpy(), color="red", zorder=5,
+                    label="optimised nodes")
+        plt.title(f"Node optimisation, {f.__name__}, n={n}, ε: {epsilon}→{eps_opt:.3f}")
+        plt.xlabel("x"); plt.ylabel("f(x)")
+        plt.legend(); plt.grid()
+        plt.show()
+
+        plt.figure(figsize=(10, 4))
+        plt.semilogy(history)
+        plt.xlabel("iteration"); plt.ylabel("C")
+        plt.title("Convergence history")
+        plt.grid()
+        plt.show()
+
+    return x_opt, eps_opt, cost0, cost1, history
