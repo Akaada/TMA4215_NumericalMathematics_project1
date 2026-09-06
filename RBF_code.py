@@ -136,3 +136,10 @@ class RBF:
         distance_matrix = np.abs(self.x_interpolate[:, np.newaxis] - self.x_interpolate[np.newaxis, :])
         M = self.phi(distance_matrix)
         return np.linalg.cond(M)
+
+
+
+
+
+
+
