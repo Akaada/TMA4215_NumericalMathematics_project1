@@ -77,15 +77,14 @@ def make_piecewise(f, a, b, K, n, nodes="equidistant"):
     xs = [get_nodes(nodes, v[k], v[k + 1], n) for k in range(K)]
     ys = [np.asarray(f(xk), dtype=float) for xk in xs]
 
-    def g(x_eval):
-        x = np.atleast_1d(np.asarray(x_eval, dtype=float))
-        out = np.zeros(x.shape, dtype=float)
+    def g(x):
+        out = np.zeros_like(x, dtype=float)
         for k in range(K):
             upper = (x <= v[k + 1]) if k == K - 1 else (x < v[k + 1])
             mask = (x >= v[k]) & upper
             if np.any(mask):
                 out[mask] = lagrange_eval(xs[k], ys[k], x[mask])
-        return out if np.ndim(x_eval) else float(out[0])
+        return out 
 
     g.nodes = np.unique(np.concatenate(xs))
     g.label = f"K = {K}, n = {n} ({nodes})"
@@ -133,7 +132,15 @@ def convergence(f,a,b,n_vals,nodes="equidistant",N=1000):
         l2_error_list.append(l2_error)
     return (np.array(max_error_list), np.array(l2_error_list))
 
-
+def convergence_piecewise(f, a, b, K_vals, n, nodes="equidistant", N=1000):
+    max_error_list = []
+    l2_error_list = []
+    for K in K_vals:
+        g = make_piecewise(f, a, b, K, n, nodes=nodes)
+        max_error, l2_error = error(g)
+        max_error_list.append(max_error)
+        l2_error_list.append(l2_error)
+    return (np.array(max_error_list), np.array(l2_error_list))
 
 # original plot_convergence function, kept for reference
 """
@@ -196,7 +203,42 @@ def plot_convergence(functions, n0, n_end, n_step=1,nodes = ["equidistant", "che
     plt.show()
 
 
-    
+
+
+
+def plot_piecewise_convergence(functions, K0, K_end,n = 3, K_step=1,nodes = ["equidistant", "chebyshev"], N=1000):
+    K_vals = np.arange(K0, K_end + 1, K_step)
+
+    fig, axes = plt.subplots(
+        len(functions),
+        len(nodes),
+        figsize=(6 * len(nodes), 4 * len(functions)),
+        squeeze=False,
+        sharex=True,
+        sharey=True,
+    )
+
+    for row, (f, a, b) in enumerate(functions):
+        for col, node_type in enumerate(nodes):
+            max_error, l2_error = convergence_piecewise(
+                f, a, b, K_vals, n, nodes=node_type, N=N
+            )
+
+            ax = axes[row, col]
+            ax.semilogy(K_vals, max_error, label="Max error", marker="o")
+            ax.semilogy(K_vals, l2_error, label="L2 error", marker="o")
+
+            ax.set_title(
+                f"{f.__name__} on [{a}, {b}]\n"
+                f"piecewise n = {n}, {node_type} nodes"
+            )
+            ax.set_xlabel("K")
+            ax.set_ylabel("Error")
+            ax.grid(True)
+            ax.legend()
+
+    fig.tight_layout()
+    plt.show()
 
 # ---------------------------------------------------------------------------
 # Example usage
