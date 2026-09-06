@@ -1,6 +1,3 @@
-
-from email import errors
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,12 +11,12 @@ def runge(x):
 runge.__name__ = "Runge function"
 
 def f_cos(x):
-    """f(x) = cos(2*pi*x), used on [0, 1]."""
+    """f(x) = cos(2*pi*x)"""
     return np.cos(2 * np.pi * x)
 f_cos.__name__ = "cos(2*pi*x)"
 
 def f_expsin(x):
-    """f(x) = exp(3x) * sin(2x), used on [0, pi/4]."""
+    """f(x) = exp(3x) * sin(2x)"""
     return np.exp(3 * x) * np.sin(2 * x)
 f_expsin.__name__ = "exp(3x) * sin(2x)"
 
@@ -333,7 +330,7 @@ def plot_convergence(functions, n0, n_end, n_step=1,nodes = ["equidistant", "che
 
 
 
-def plot_piecewise_convergence(functions, K0, K_end,n = 3, K_step=1,nodes = ["equidistant", "chebyshev"], N=1000):
+def plot_piecewise_convergence(functions, K0, K_end,n = 5, K_step=1,nodes = ["equidistant", "chebyshev"], N=1000):
     """
     Plot convergence errors for piecewise Lagrange interpolation for multiple functions and node types.
 
