@@ -169,7 +169,7 @@ def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_num
 
 
 
-def create_cost_function(f, a, b, N=5000):
+def create_cost_function(f, a, b, N=1000):
 
     eta = torch.linspace(a, b, N + 1)   # fine grid, fixed
     c = f(eta)                          # data c_k = f(eta_k), fixed
@@ -216,14 +216,16 @@ def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-8):
 
 
 def optimize_nodes(f, a, b, epsilon, n, L=1.0, iters=200,
-                   perturb=0.0, N=1000, plot=True):
+                    N=5000, plot=True):
     """
     Optimise RBF nodes AND shape parameter by gradient descent on the L2 cost.
 
     epsilon (float): initial value of the shape parameter (now optimised too)
     n (int): number of nodes is n+1
     L (float): initial Lipschitz estimate for the backtracking
-    perturb (float): std of noise added to the equispaced start, breaks symmetry
+    iters (int): maximum number of iterations
+    N (int): number of points in the fine grid
+    plot (bool): whether to plot the results
 
     Returns:
     tuple: (optimised nodes, optimised epsilon, initial cost, final cost, history)
@@ -231,8 +233,6 @@ def optimize_nodes(f, a, b, epsilon, n, L=1.0, iters=200,
     C = create_cost_function(f, a, b, N)
 
     x0 = torch.linspace(a, b, n + 1)
-    if perturb > 0:
-        x0 = x0 + perturb * torch.randn(n + 1)
     z0 = torch.cat([x0, torch.tensor([float(epsilon)])])
 
     # --- NaN check required by the task: verify the gradient at the initial
@@ -271,7 +271,7 @@ def optimize_nodes(f, a, b, epsilon, n, L=1.0, iters=200,
         plt.show()
 
         plt.figure(figsize=(10, 4))
-        plt.semilogy(history)
+        plt.loglog(history)
         plt.xlabel("iteration"); plt.ylabel("C")
         plt.title("Convergence history")
         plt.grid()

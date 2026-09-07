@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from scipy.special import factorial
 plt.style.use("bmh")
 
 
@@ -20,6 +20,12 @@ def f_expsin(x):
     return np.exp(3 * x) * np.sin(2 * x)
 f_expsin.__name__ = "exp(3x) * sin(2x)"
 
+def max_error_cos(n):
+    Mn = (2 * np.pi) ** (n + 1)
+    h = 1.0 / n                                  #
+    pimax_equidistant = factorial(n) * h ** (n + 1) / 4
+    pimax_chebyshev = 1 / (2 ** (2 * n + 1))
+    return (Mn * pimax_equidistant / factorial(n + 1), Mn * pimax_chebyshev / factorial(n + 1))
 
 
 # nodes generation functions
@@ -52,7 +58,9 @@ def chebyshev_nodes(a, b, n):
     """
     if n == 0:
         return np.array([0.5 * (a + b)])
-    t = np.cos(np.arange(n + 1) * np.pi / n)[::-1]   # Chebyshev nodes on [-1, 1]
+    k = np.arange(n + 1)
+    #t = np.cos(k * np.pi / n)[::-1]   # Chebyshev nodes on [-1, 1]
+    t = np.cos((k + 0.5) * np.pi / (n + 1))[::-1]   # Chebyshev nodes on [-1, 1]
     return 0.5 * (b - a) * t + 0.5 * (b + a)         # Chebyshev nodes on [a, b]
 
 
@@ -326,7 +334,42 @@ def plot_convergence(functions, n0, n_end, n_step=1,nodes = ["equidistant", "che
     fig.tight_layout()
     plt.show()
 
+def plot_convergece_cos_error_bound(n0, n_end, n_step=1):
+    """
+    Plot the maximum error bounds for the cosine function using equidistant and Chebyshev nodes.
 
+    Parameters:
+    n0 (int): The starting value of n for interpolation.
+    n_end (int): The ending value of n for interpolation.
+    n_step (int): The step size for the range of n values.
+    """
+    n_vals = np.arange(n0, n_end + 1, n_step)
+    max_error_equidistant_theoretical = []
+    max_error_chebyshev_theoretical = []
+    max_error_equidistant_empirical = []
+    max_error_chebyshev_empirical = []
+
+    for n in n_vals:
+        error_equidistant, error_chebyshev = max_error_cos(n)
+        max_error_equidistant_theoretical.append(error_equidistant)
+        max_error_chebyshev_theoretical.append(error_chebyshev)
+        error_equidistant_empirical, _ = convergence(f_cos, 0, 1, [n], nodes="equidistant")
+        error_chebyshev_empirical, _ = convergence(f_cos, 0, 1, [n], nodes="chebyshev")
+        max_error_equidistant_empirical.append(error_equidistant_empirical[0])
+        max_error_chebyshev_empirical.append(error_chebyshev_empirical[0])
+
+
+    plt.figure(figsize=(10, 6))
+    plt.semilogy(n_vals, max_error_equidistant_empirical, label="Equidistant nodes (empirical)", marker='o', linestyle='dashed')
+    plt.semilogy(n_vals, max_error_chebyshev_empirical, label="Chebyshev nodes (empirical)", marker='o', linestyle='dashed')
+    plt.semilogy(n_vals, max_error_equidistant_theoretical, label="Equidistant nodes", marker='o')
+    plt.semilogy(n_vals, max_error_chebyshev_theoretical, label="Chebyshev nodes", marker='o')
+    plt.xlabel("n")
+    plt.ylabel("Maximum Error Bound")
+    plt.title("Maximum Error Bounds for cos(2*pi*x) Interpolation")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 
