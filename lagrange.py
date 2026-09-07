@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import factorial
 plt.style.use("bmh")
+import time
 
 
 # functions to interpolate, define and name them for plotting and ease of use
@@ -138,7 +139,7 @@ def make_lagrange(f, a, b, n, nodes="equidistant"):
     g.funcion = f
     return g
 
-def make_piecewise(f, a, b, K, n, nodes="equidistant"):
+def make_piecewise(f, a, b, K, n=5, nodes="equidistant"):
     """
     Create a piecewise Lagrange interpolating function for a given function f on the interval [a, b] using K subintervals and n intervals per subinterval with specified node type.
 
@@ -419,5 +420,154 @@ def plot_piecewise_convergence(functions, K0, K_end,n = 5, K_step=1,nodes = ["eq
             ax.grid(True)
             ax.legend()
 
+    fig.tight_layout()
+    plt.show()
+
+
+def time_interpolation(g, x_eval):
+    """
+    Measure the time taken to evaluate the interpolating polynomial g at points x_eval.
+
+    Parameters:
+    g (callable): The interpolating polynomial function.
+    x_eval (ndarray): The points at which to evaluate the interpolating polynomial.
+
+    Returns:
+    float: The time taken in seconds to evaluate the interpolating polynomial.
+    """
+    start_time = time.time()
+    g(x_eval)
+    end_time = time.time()
+    return end_time - start_time
+
+def plot_time_interpolation(
+    f, a, b,
+    n0, n_end,
+    K0, K_end,
+    n_step=1,
+    K_step=1,
+    piecewise_n=5,
+    N=1000
+):
+    n_vals = np.arange(n0, n_end + 1, n_step)
+    K_vals = np.arange(K0, K_end + 1, K_step)
+    x_eval = np.linspace(a, b, N)
+
+    errors_equidistant = []
+    times_equidistant = []
+    errors_chebyshev = []
+    times_chebyshev = []
+    errors_piecewise = []
+    times_piecewise = []
+
+    # Global equidistant interpolation
+    for n in n_vals:
+        interpolant = make_lagrange(
+            f, a, b, n, nodes="equidistant"
+        )
+        times_equidistant.append(
+            time_interpolation(interpolant, x_eval)
+        )
+        errors_equidistant.append(error(interpolant)[0])
+
+    # Global Chebyshev interpolation
+    for n in n_vals:
+        interpolant = make_lagrange(
+            f, a, b, n, nodes="chebyshev"
+        )
+        times_chebyshev.append(
+            time_interpolation(interpolant, x_eval)
+        )
+        errors_chebyshev.append(error(interpolant)[0])
+
+    # Piecewise equidistant interpolation
+    for K in K_vals:
+        interpolant = make_piecewise(
+            f, a, b, K,
+            n=piecewise_n,
+            nodes="equidistant"
+        )
+        times_piecewise.append(
+            time_interpolation(interpolant, x_eval)
+        )
+        errors_piecewise.append(error(interpolant)[0])
+
+    fig, axes = plt.subplots(
+        1, 3,
+        figsize=(18, 5),
+        sharey=True
+    )
+
+    runtime_axes = [axis.twinx() for axis in axes]
+
+    # Error curves
+    axes[0].semilogy(
+        n_vals, errors_equidistant,
+        "o-", color="C0", label="Error"
+    )
+    axes[1].semilogy(
+        n_vals, errors_chebyshev,
+        "o-", color="C0", label="Error"
+    )
+    axes[2].semilogy(
+        K_vals, errors_piecewise,
+        "o-", color="C0", label="Error"
+    )
+
+    # Runtime curves
+    runtime_axes[0].semilogy(
+        n_vals, times_equidistant,
+        "s--", color="C1", label="Runtime"
+    )
+    runtime_axes[1].semilogy(
+        n_vals, times_chebyshev,
+        "s--", color="C1", label="Runtime"
+    )
+    runtime_axes[2].semilogy(
+        K_vals, times_piecewise,
+        "s--", color="C1", label="Runtime"
+    )
+
+    axes[0].set_title("Equidistant interpolation")
+    axes[1].set_title("Chebyshev interpolation")
+    axes[2].set_title("Piecewise equidistant interpolation")
+
+    axes[0].set_xlabel("n")
+    axes[1].set_xlabel("n")
+    axes[2].set_xlabel("K")
+
+    axes[0].set_ylabel("Error")
+    axes[0].grid(True)
+
+    # Make all runtime axes use the same y-scale
+    all_times = np.concatenate([
+        times_equidistant,
+        times_chebyshev,
+        times_piecewise
+    ])
+
+    positive_times = all_times[all_times > 0]
+    runtime_min = positive_times.min()
+    runtime_max = positive_times.max()
+
+    for runtime_axis in runtime_axes:
+        runtime_axis.set_ylim(
+            runtime_min / 2,
+            runtime_max * 2
+        )
+        runtime_axis.set_ylabel("Runtime [s]")
+
+    # Combined legends
+    for axis, runtime_axis in zip(axes, runtime_axes):
+        handles_1, labels_1 = axis.get_legend_handles_labels()
+        handles_2, labels_2 = runtime_axis.get_legend_handles_labels()
+
+        axis.legend(
+            handles_1 + handles_2,
+            labels_1 + labels_2,
+            loc="best"
+        )
+
+    fig.suptitle(f"{f.__name__}")
     fig.tight_layout()
     plt.show()
