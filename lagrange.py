@@ -113,7 +113,7 @@ def lagrange_eval(x_nodes, y_nodes, x_eval):
     return float(result) if result.ndim == 0 else result
 
 
-def make_lagrange(f, a, b, n, nodes="equidistant"):
+def make_lagrange(f, a, b, n, nodes="equidistant",noise = 0):
     """
     Create a Lagrange interpolating function for a given function f on the interval [a, b] using n intervals and specified node type.
     
@@ -124,12 +124,17 @@ def make_lagrange(f, a, b, n, nodes="equidistant"):
     b (float): The right endpoint of the interval.
     n (int): The number of intervals.
     nodes (str): The type of nodes to use ("equidistant" or "chebyshev").
+    noise (float): The standard deviation of Gaussian noise to add to the evaluation points.
 
     returns:
     callable: The Lagrange interpolating function.
     """
     x_nodes = get_nodes(nodes, a, b, n)
+    
     y_nodes = np.asarray(f(x_nodes), dtype=float)
+
+    if noise > 0:
+        y_nodes += np.random.normal(0, noise, size=y_nodes.shape)*y_nodes
 
     def g(x):
         return lagrange_eval(x_nodes, y_nodes, x)
@@ -139,7 +144,7 @@ def make_lagrange(f, a, b, n, nodes="equidistant"):
     g.funcion = f
     return g
 
-def make_piecewise(f, a, b, K, n=5, nodes="equidistant"):
+def make_piecewise(f, a, b, K, n=5, nodes="equidistant",noise = 0):
     """
     Create a piecewise Lagrange interpolating function for a given function f on the interval [a, b] using K subintervals and n intervals per subinterval with specified node type.
 
@@ -150,13 +155,19 @@ def make_piecewise(f, a, b, K, n=5, nodes="equidistant"):
     K (int): The number of subintervals.
     n (int): The number of intervals per subinterval.
     nodes (str): The type of nodes to use ("equidistant" or "chebyshev").
+    noise (float): The standard deviation of Gaussian noise to add to the evaluation points.
 
     Returns
     callable: The piecewise Lagrange interpolating function.
     """
     v = np.linspace(a, b, K + 1)
     xs = [get_nodes(nodes, v[k], v[k + 1], n) for k in range(K)]
+    
     ys = [np.asarray(f(xk), dtype=float) for xk in xs]
+
+    if noise > 0:
+        for k in range(K):
+            ys[k] += np.random.normal(0, noise, size=ys[k].shape)*ys[k]
 
     def g(x):
         out = np.zeros_like(x, dtype=float)
@@ -345,6 +356,7 @@ def plot_convergece_cos_error_bound(n0, n_end, n_step=1):
     n_step (int): The step size for the range of n values.
     """
     n_vals = np.arange(n0, n_end + 1, n_step)
+    nprintvals = [n for n in n_vals if n % 5 == 0]
     max_error_equidistant_theoretical = []
     max_error_chebyshev_theoretical = []
     max_error_equidistant_empirical = []
@@ -358,6 +370,11 @@ def plot_convergece_cos_error_bound(n0, n_end, n_step=1):
         error_chebyshev_empirical, _ = convergence(f_cos, 0, 1, [n], nodes="chebyshev")
         max_error_equidistant_empirical.append(error_equidistant_empirical[0])
         max_error_chebyshev_empirical.append(error_chebyshev_empirical[0])
+        if n in nprintvals:
+            print(f"n = {n}: Max error bound (equidistant) = {error_equidistant:.2e}, Max error bound (Chebyshev) = {error_chebyshev:.2e}")
+            print(f"n = {n}: Max error empirical (equidistant) = {error_equidistant_empirical[0]:.2e}, Max error empirical (Chebyshev) = {error_chebyshev_empirical[0]:.2e}")
+            print(f"n = {n}: Ratio (empirical/theoretical) (equidistant) = {error_equidistant_empirical[0]/error_equidistant:.2e}, Ratio (empirical/theoretical) (Chebyshev) = {error_chebyshev_empirical[0]/error_chebyshev:.2e}")
+            print("-" * 80)
 
 
     plt.figure(figsize=(10, 6))
@@ -447,7 +464,8 @@ def plot_time_interpolation(
     n_step=1,
     K_step=1,
     piecewise_n=5,
-    N=1000
+    N=1000,
+    noise = 0
 ):
     n_vals = np.arange(n0, n_end + 1, n_step)
     K_vals = np.arange(K0, K_end + 1, K_step)
@@ -463,7 +481,7 @@ def plot_time_interpolation(
     # Global equidistant interpolation
     for n in n_vals:
         interpolant = make_lagrange(
-            f, a, b, n, nodes="equidistant"
+            f, a, b, n, nodes="equidistant", noise=noise
         )
         times_equidistant.append(
             time_interpolation(interpolant, x_eval)
@@ -473,7 +491,7 @@ def plot_time_interpolation(
     # Global Chebyshev interpolation
     for n in n_vals:
         interpolant = make_lagrange(
-            f, a, b, n, nodes="chebyshev"
+            f, a, b, n, nodes="chebyshev", noise=noise
         )
         times_chebyshev.append(
             time_interpolation(interpolant, x_eval)
@@ -485,7 +503,7 @@ def plot_time_interpolation(
         interpolant = make_piecewise(
             f, a, b, K,
             n=piecewise_n,
-            nodes="equidistant"
+            nodes="equidistant",noise=noise
         )
         times_piecewise.append(
             time_interpolation(interpolant, x_eval)
