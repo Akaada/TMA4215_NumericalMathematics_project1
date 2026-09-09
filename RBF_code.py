@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+torch.set_default_dtype(torch.float64)
 
 plt.style.use("bmh")
 
@@ -45,7 +46,8 @@ def weights_create(x,f, epsilon):
 def RBF_interpolation_task(x,x_nodes,y,epsilon):
     # NOTE: This function is only created for the task. 
     # NOTE: It is more efficient to create the weights once and then use them for multiple evaluations of the interpolation function.
-    weights = weights_create(x_nodes, y, epsilon)
+    M = M_create(x, epsilon)
+    weights = torch.linalg.solve(M, y)
     return RBF_interpolation(x, x_nodes, weights, epsilon)
 
 
@@ -60,18 +62,20 @@ def create_RBF_interpolator(x_nodes, f, epsilon):
     return g
 
 
-def plot_RBF_interpolator(f,a,b,epsilon,n,N=1000):
-    x_nodes = torch.linspace(a, b, n+1)
-    g = create_RBF_interpolator(x_nodes, f, epsilon)
 
-    x_plot = torch.linspace(a, b, N)
-    y_plot = g(x_plot)
-
+def plot_RBF_interpolator(f,a,b,n,*epsilons,N=1000):
     plt.figure(figsize=(10, 6))
-    plt.plot(x_plot.numpy(), y_plot.numpy(), label=f"RBF Interpolation (n={n}, ε={epsilon})")
+    x_nodes = torch.linspace(a, b, n+1)
+    x_plot = torch.linspace(a, b, N)
+    for epsilon in epsilons:
+        g = create_RBF_interpolator(x_nodes, f, epsilon)
+        y_plot = g(x_plot)
+
+    
+        plt.plot(x_plot.numpy(), y_plot.numpy(), label=f"RBF Interpolation (n={n}, ε={epsilon})")
     plt.plot(x_plot.numpy(), f(x_plot).numpy(), label=f"Original Function: {f.__name__}")
     plt.scatter(x_nodes.numpy(), f(x_nodes).numpy(), color='red', zorder=5, label="Interpolation Nodes")
-    plt.title(f"RBF Interpolation of {f.__name__} with n={n} and ε={epsilon}")
+    plt.title(f"RBF Interpolation of {f.__name__} with n={n}")
     plt.xlabel("x")
     plt.ylabel("f(x)")
     plt.legend()
@@ -104,7 +108,7 @@ def error(g):
     return (torch.max(error).item(), torch.sqrt(torch.sum(error**2) *(b - a)/N).item())
 
 
-def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_number,n=10,N=1000):
+def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_number,n=10,N=1000,normalize_epsilon=False):
     """
     Plot convergence errors and condition numbers for RBF interpolation for a given function and range of parameters.
     
@@ -119,7 +123,9 @@ def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_num
     N (int, optional): Number of points for plotting. Default is 1000.
     """
 
-    epsilon_values = torch.linspace(epsilon0, epsilon_end, epsilon_number)
+    epsilon_values = torch.linspace(epsilon0, epsilon_end, epsilon_number) # scale epsilon by the interval length
+    if normalize_epsilon:
+        epsilon_values /= (b - a)
     max_errors = []
     l2_errors = []
     cond_numbers = []
@@ -150,8 +156,10 @@ def plot_RBF_convergence_condition(function,a,b,epsilon0,epsilon_end,epsilon_num
         epsilon_values, cond_numbers, "^-", color="red",
         label="Condition number"
     )
-
-    error_axis.set_xlabel("epsilon")
+    if normalize_epsilon:
+        error_axis.set_xlabel("epsilon / (b - a)")
+    else:
+        error_axis.set_xlabel("epsilon")
     error_axis.set_ylabel("Interpolation error")
     condition_axis.set_ylabel("Condition number")
 
@@ -180,7 +188,7 @@ def create_cost_function(f, a, b, N=1000):
 
     return C
 
-def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-8):
+def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-12):
     """
     C        : cost function, takes a 1D tensor, returns a scalar
     x        : initial guess, 1D tensor
@@ -193,11 +201,11 @@ def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-8):
     history = []
 
     for k in range(iters):
-        print(k)
         cost = C(x)
         g, = torch.autograd.grad(cost, x)
         history.append(cost.item())
         if g.norm() < tol:
+            print(f"Converged after {k} iterations, |g| = {g.norm().item():.3e}")
             break
 
         while True:
