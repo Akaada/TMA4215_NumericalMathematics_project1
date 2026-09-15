@@ -141,7 +141,7 @@ def make_lagrange(f, a, b, n, nodes="equidistant",noise = 0):
 
     g.nodes = x_nodes
     g.label = f"n = {n} ({nodes})"
-    g.funcion = f
+    g.function = f
     return g
 
 def make_piecewise(f, a, b, K, n=5, nodes="equidistant",noise = 0):

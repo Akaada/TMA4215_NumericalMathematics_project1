@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from lagrange import *
+import pandas as pd
 torch.set_default_dtype(torch.float64)
 
 plt.style.use("bmh")
@@ -314,3 +316,52 @@ def optimize_nodes(f, a, b, epsilon, n, L=[1.0], iters=200,
         plt.show()
 
     return results
+
+def compare_interpolators(n_vals, epsilon, N=1000):
+    a = 0.0
+    b = 1.0
+
+    f1 = f_cos_torch
+    f2 = f_cos
+
+    results_opt = []
+    results_cheb = []
+    results_equi = []
+
+    for n in n_vals:
+        lagrange_cheb = make_lagrange(f2, a, b, n, nodes="chebyshev")
+        lagrange_equi = make_lagrange(f2, a, b, n, nodes="equidistant")
+        RBF_opt_result = optimize_nodes(f1, a, b, epsilon*n/10, n, iters=1000, plot=False)[0]
+        RBF_opt_nodes = RBF_opt_result[0]
+        RBF_opt_eps = RBF_opt_result[1]
+        RBF_opt = create_RBF_interpolator(RBF_opt_nodes, f1, RBF_opt_eps)
+
+
+        results_cheb.append(error(lagrange_cheb))
+        results_equi.append(error(lagrange_equi))
+        results_opt.append(error(RBF_opt))
+
+    results_df = pd.DataFrame({
+        "n": n_vals,
+
+        "Lagrange Chebyshev L2 Error": [res[1] for res in results_cheb],
+
+        "Lagrange Equidistant L2 Error": [res[1] for res in results_equi],
+
+        "RBF Optimized L2 Error": [res[1] for res in results_opt]
+    })
+
+    styled_table = (
+        results_df.style
+        .format({
+            "Lagrange Chebyshev L2 Error": "{:.3e}",
+            "Lagrange Equidistant L2 Error": "{:.3e}",
+            "RBF Optimized L2 Error": "{:.3e}",
+        })
+        .set_table_styles([
+            {"selector": "th", "props": [("font-weight", "bold"), ("font-size", "14pt")]},
+            {"selector": "td", "props": [("font-size", "13pt")]},
+        ])
+    )
+
+    return styled_table
