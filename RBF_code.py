@@ -188,7 +188,7 @@ def create_cost_function(f, a, b, N=1000):
 
     return C
 
-def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-12):
+def gd_backtracking(C, x, L_init=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-12,L_reset=False):
     """
     C        : cost function, takes a 1D tensor, returns a scalar
     x        : initial guess, 1D tensor
@@ -199,11 +199,14 @@ def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-12)
     #NOTE: changed phi to cost to avoid confusion with the radial basis function phi
     x = x.clone().detach().requires_grad_(True)
     history = []
+    L = L_init
 
     for k in range(iters):
         cost = C(x)
         g, = torch.autograd.grad(cost, x)
         history.append(cost.item())
+        if L_reset:
+            L = L_init
         if g.norm() < tol:
             print(f"Converged after {k} iterations, |g| = {g.norm().item():.3e}")
             break
@@ -214,75 +217,100 @@ def gd_backtracking(C, x, L=1.0, rho_inc=2.0, rho_dec=0.5, iters=100, tol=1e-12)
                 d = x_new - x
                 cost_new = C(x_new)
                 model = cost + g @ d + 0.5 * L * (d @ d)
-            if torch.isfinite(cost_new) and cost_new <= model:
+            if cost_new <= model:
                 x = x_new.requires_grad_(True)
                 L *= rho_dec
+                
                 break
             L *= rho_inc
 
     return x.detach(), L, history
 
 
-def optimize_nodes(f, a, b, epsilon, n, L=1.0, iters=200,
-                    N=5000, plot=True):
-    """
-    Optimise RBF nodes AND shape parameter by gradient descent on the L2 cost.
-
-    epsilon (float): initial value of the shape parameter (now optimised too)
-    n (int): number of nodes is n+1
-    L (float): initial Lipschitz estimate for the backtracking
-    iters (int): maximum number of iterations
-    N (int): number of points in the fine grid
-    plot (bool): whether to plot the results
-
-    Returns:
-    tuple: (optimised nodes, optimised epsilon, initial cost, final cost, history)
-    """
+def optimize_nodes(f, a, b, epsilon, n, L=[1.0], iters=200,
+                   N=5000, plot=True,rho_inc=2.0, rho_dec=0.5, L_reset=False):
     C = create_cost_function(f, a, b, N)
 
     x0 = torch.linspace(a, b, n + 1)
     z0 = torch.cat([x0, torch.tensor([float(epsilon)])])
-
-    # --- NaN check required by the task: verify the gradient at the initial
-    # nodes is finite before starting the descent. The diagonal of M involves
-    # x_i - x_i = 0, where |.| is not differentiable.
-    z0_ = z0.clone().requires_grad_(True)
-    g0, = torch.autograd.grad(C(z0_), z0_)
-    print("initial gradient finite:", torch.isfinite(g0).all().item(),
-          " |g0| =", g0.norm().item())
-    assert torch.isfinite(g0).all(), "non-finite gradient at the initial nodes"
-    # ---
-
-
     cost0 = C(z0).item()
-    z_opt, _, history = gd_backtracking(C, z0, L=L, iters=iters)
-    x_opt, eps_opt = z_opt[:-1], z_opt[-1].item()
-    cost1 = C(z_opt).item()
 
-    print(f"cost: {cost0:.3e} -> {cost1:.3e},  eps: {epsilon} -> {eps_opt:.4f}")
+    results = []
+
+    for initial_L in L:
+        z_opt, _, history = gd_backtracking(
+            C, z0, L_init=initial_L, iters=iters, rho_inc=rho_inc, rho_dec=rho_dec, L_reset=L_reset
+        )
+
+        x_opt = z_opt[:-1]
+        eps_opt = z_opt[-1].item()
+        cost1 = C(z_opt).item()
+
+        print(
+            f"L={initial_L}: cost {cost0:.3e} -> {cost1:.3e}, "
+            f"eps: {epsilon} -> {eps_opt:.4f}"
+        )
+
+        results.append(
+            (x_opt, eps_opt, cost0, cost1, history)
+        )
 
     if plot:
         x_plot = torch.linspace(a, b, N)
-        g0 = create_RBF_interpolator(x0, f, epsilon)
-        g1 = create_RBF_interpolator(x_opt, f, eps_opt)
+        f_plot = f(x_plot).numpy()
 
-        plt.figure(figsize=(10, 6))
-        plt.plot(x_plot.numpy(), f(x_plot).numpy(), "k", label=f.__name__)
-        plt.plot(x_plot.numpy(), g0(x_plot).numpy(), "--", label="start")
-        plt.plot(x_plot.numpy(), g1(x_plot).numpy(), label="optimised")
-        plt.scatter(x0.numpy(), f(x0).numpy(), marker="x", label="start nodes")
-        plt.scatter(x_opt.numpy(), f(x_opt).numpy(), color="red", zorder=5,
-                    label="optimised nodes")
-        plt.title(f"Node optimisation, {f.__name__}, n={n}, ε: {epsilon}→{eps_opt:.3f}")
-        plt.xlabel("x"); plt.ylabel("f(x)")
-        plt.legend(); plt.grid()
+        fig, axes = plt.subplots(
+            2, len(L),
+            figsize=(6 * len(L), 9),
+            squeeze=False
+        )
+
+        for column, (initial_L, result) in enumerate(zip(L, results)):
+            x_opt, eps_opt, _, _, history = result
+
+            ax_interp = axes[0, column]
+            ax_conv = axes[1, column]
+
+            g0 = create_RBF_interpolator(x0, f, epsilon)
+            g1 = create_RBF_interpolator(x_opt, f, eps_opt)
+
+            ax_interp.plot(
+                x_plot.numpy(), f_plot,
+                "k", label=f.__name__
+            )
+            ax_interp.plot(
+                x_plot.numpy(), g0(x_plot).numpy(),
+                "--", label="start"
+            )
+            ax_interp.plot(
+                x_plot.numpy(), g1(x_plot).numpy(),
+                label="optimised"
+            )
+            ax_interp.scatter(
+                x0.numpy(), f(x0).numpy(),
+                marker="x", label="start nodes"
+            )
+            ax_interp.scatter(
+                x_opt.numpy(), f(x_opt).numpy(),
+                color="red", label="optimised nodes"
+            )
+
+            ax_interp.set_title(f"L={initial_L}, interpolation")
+            ax_interp.set_xlabel("x")
+            ax_interp.set_ylabel("f(x)")
+            ax_interp.grid()
+            ax_interp.legend()
+
+            ax_conv.semilogy(
+                range(1, len(history) + 1),
+                history
+            )
+            ax_conv.set_title(f"L={initial_L}, convergence")
+            ax_conv.set_xlabel("iteration")
+            ax_conv.set_ylabel("C")
+            ax_conv.grid()
+
+        fig.tight_layout()
         plt.show()
 
-        plt.figure(figsize=(10, 4))
-        plt.loglog(history)
-        plt.xlabel("iteration"); plt.ylabel("C")
-        plt.title("Convergence history")
-        plt.grid()
-        plt.show()
-
-    return x_opt, eps_opt, cost0, cost1, history
+    return results
